@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Web Forensics Detector</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 2rem; }
+        h1 { text-align: center; color: #38bdf8; margin-bottom: 0.5rem; font-size: 1.8rem; }
+        .subtitle { text-align: center; color: #64748b; margin-bottom: 2rem; font-size: 0.9rem; }
+        .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; justify-content: center; }
+        .tab { padding: 0.6rem 1.5rem; border-radius: 8px; border: 1px solid #334155; background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.95rem; transition: all 0.2s; }
+        .tab.active { background: #0284c7; color: white; border-color: #0284c7; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
+        .panel { display: none; }
+        .panel.active { display: block; }
+        label { display: block; margin-bottom: 0.4rem; color: #94a3b8; font-size: 0.9rem; }
+        input, textarea, select { width: 100%; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 0.95rem; margin-bottom: 1rem; }
+        textarea { resize: vertical; }
+        button { width: 100%; padding: 0.8rem; border-radius: 8px; border: none; background: #0284c7; color: white; font-size: 1rem; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #0369a1; }
+        .result { margin-top: 1.5rem; padding: 1.2rem; border-radius: 10px; display: none; }
+        .result.attack { background: #450a0a; border: 1px solid #ef4444; }
+        .result.safe   { background: #052e16; border: 1px solid #22c55e; }
+        .result h2 { font-size: 1.2rem; margin-bottom: 0.5rem; }
+        .attack h2 { color: #ef4444; }
+        .safe h2   { color: #22c55e; }
+        .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.8rem; margin: 0.2rem; background: #7f1d1d; color: #fca5a5; }
+        .prob-bar { background: #1e293b; border-radius: 6px; height: 10px; margin: 0.3rem 0 0.8rem; overflow: hidden; }
+        .prob-fill { height: 100%; border-radius: 6px; transition: width 0.5s; }
+        .fill-red   { background: #ef4444; }
+        .fill-green { background: #22c55e; }
+        small { color: #64748b; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1rem; }
+        .stat-box { background: #0f172a; border-radius: 8px; padding: 1rem; text-align: center; }
+        .stat-num { font-size: 1.8rem; font-weight: bold; color: #38bdf8; }
+        .stat-num.red { color: #ef4444; }
+        .stat-num.green { color: #22c55e; }
+        .stat-label { font-size: 0.8rem; color: #64748b; margin-top: 0.3rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th { background: #0f172a; padding: 0.6rem; text-align: right; color: #94a3b8; }
+        td { padding: 0.6rem; border-bottom: 1px solid #1e293b; }
+        tr.attack-row { background: #1c0a0a; }
+        tr.safe-row   { background: #0a1c0a; }
+        .tag-sql  { background: #7f1d1d; color: #fca5a5; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.75rem; }
+        .tag-xss  { background: #4c1d95; color: #c4b5fd; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.75rem; }
+        .tag-trav { background: #1c3a5e; color: #7dd3fc; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.75rem; }
+        .tag-cmd  { background: #3b1f00; color: #fdba74; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.75rem; }
+        .tag-unk  { background: #1e293b; color: #94a3b8; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.75rem; }
+        #log-report { display: none; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🔍 Web Forensics Detector</h1>
+    <p class="subtitle">تحليل ما بعد التشويه — Web Defacement Analysis</p>
+
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('request')">تحليل طلب</button>
+        <button class="tab" onclick="switchTab('logfile')">تحليل Log File</button>
+        <button class="tab" onclick="switchTab('report')">تقرير الهجمات</button>
+    </div>
+
+    <!-- تحليل طلب -->
+    <div class="panel active" id="panel-request">
+        <div class="card">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                <div>
+                    <label>Method</label>
+                    <select id="method"><option>GET</option><option>POST</option></select>
+                </div>
+                <div>
+                    <label>Content-Length</label>
+                    <input type="number" id="content_length" value="0">
+                </div>
+            </div>
+            <label>URI</label>
+            <input type="text" id="uri" placeholder="/api/users">
+            <label>GET Query</label>
+            <input type="text" id="get_query" placeholder="id=1&page=2">
+            <label>POST Data</label>
+            <textarea id="post_data" placeholder="username=admin&password=..." style="height:80px;"></textarea>
+            <button onclick="analyzeRequest()">🔎 تحليل الطلب</button>
+
+            <div class="result" id="req-result">
+                <h2 id="req-title"></h2>
+                <p id="req-conf"></p>
+                <div id="req-types" style="margin: 0.5rem 0;"></div>
+                <br>
+                <small>Anomalous</small>
+                <div class="prob-bar"><div class="prob-fill fill-red"  id="bar-anom"></div></div>
+                <small>Valid</small>
+                <div class="prob-bar"><div class="prob-fill fill-green" id="bar-valid"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- تحليل Log File -->
+    <div class="panel" id="panel-logfile">
+        <div class="card">
+            <label>الصق محتوى Apache/Nginx Log هنا</label>
+            <textarea id="log-content" style="height:200px; font-family:monospace; font-size:0.8rem;"
+                placeholder='192.168.1.1 - - [23/Mar/2026:10:00:01] "GET /index.html HTTP/1.1" 200 1234
+10.0.0.5 - - [23/Mar/2026:10:00:02] "GET /shop?id=1'"'"' OR 1=1-- HTTP/1.1" 200 500'></textarea>
+            <button onclick="analyzeLog()">📋 تحليل الـ Log</button>
+        </div>
+
+        <div id="log-report">
+            <div class="stats-grid">
+                <div class="stat-box"><div class="stat-num" id="stat-total">0</div><div class="stat-label">إجمالي الطلبات</div></div>
+                <div class="stat-box"><div class="stat-num red" id="stat-attacks">0</div><div class="stat-label">هجمات</div></div>
+                <div class="stat-box"><div class="stat-num green" id="stat-safe">0</div><div class="stat-label">طلبات طبيعية</div></div>
+                <div class="stat-box"><div class="stat-num" id="stat-rate">0%</div><div class="stat-label">نسبة الهجمات</div></div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom:1rem; color:#38bdf8;">🎯 أنواع الهجمات</h3>
+                <div id="attack-types-list"></div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom:1rem; color:#ef4444;">🌐 أكثر IPs هجوماً</h3>
+                <div id="top-ips"></div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom:1rem; color:#f59e0b;">📄 تفاصيل الهجمات</h3>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>IP</th>
+                                <th>Method</th>
+                                <th>URI</th>
+                                <th>نوع الهجوم</th>
+                                <th>الثقة</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attacks-table"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+        <!-- قسم DoS/DDoS -->
+        <div id="dos-section" style="display:none;">
+            <div class="card" style="border:1px solid #334155;">
+                <h3 style="margin-bottom:1rem;">⚡ تحليل DoS / DDoS</h3>
+                <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;">
+                    <span style="color:#94a3b8;">نوع الهجوم المكتشف:</span>
+                    <span id="dos-type" style="font-size:1.3rem;font-weight:bold;"></span>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-box"><div class="stat-num" id="dos-unique-ips">0</div><div class="stat-label">IPs فريدة</div></div>
+                    <div class="stat-box"><div class="stat-num red" id="dos-max-ip">0</div><div class="stat-label">أعلى طلبات/IP</div></div>
+                    <div class="stat-box"><div class="stat-num" id="dos-avg-ip">0</div><div class="stat-label">متوسط طلبات/IP</div></div>
+                    <div class="stat-box"><div class="stat-num" id="dos-diversity">0%</div><div class="stat-label">تنوع IPs</div></div>
+                </div>
+                <h4 style="margin-bottom:0.8rem;color:#f59e0b;">🔔 التنبيهات</h4>
+                <div id="dos-alerts"></div>
+            </div>
+        </div>
+
+    <!-- تقرير الهجمات -->
+    <div class="panel" id="panel-report">
+        <div class="card">
+            <button onclick="loadReport()">🔄 تحديث التقرير</button>
+            <div id="live-report" style="margin-top:1rem;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+function switchTab(tab) {
+    document.querySelectorAll(".tab").forEach((t, i) => {
+        t.classList.toggle("active", ["request","logfile","report"][i] === tab);
+    });
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    document.getElementById("panel-" + tab).classList.add("active");
+    if (tab === "report") loadReport();
+}
+
+function getAttackTag(type) {
+    const map = {
+        "SQL Injection":       "tag-sql",
+        "XSS":                 "tag-xss",
+        "Path Traversal":      "tag-trav",
+        "Command Injection":   "tag-cmd",
+    };
+    return `<span class="${map[type] || 'tag-unk'}">${type}</span>`;
+}
+
+async function analyzeRequest() {
+    const payload = {
+        uri:            document.getElementById("uri").value,
+        get_query:      document.getElementById("get_query").value,
+        post_data:      document.getElementById("post_data").value,
+        method:         document.getElementById("method").value,
+        content_length: document.getElementById("content_length").value,
+    };
+
+    const res  = await fetch("/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    const box = document.getElementById("req-result");
+    box.style.display = "block";
+    box.className = "result " + (data.is_attack ? "attack" : "safe");
+
+    document.getElementById("req-title").textContent =
+        data.is_attack ? "🚨 هجوم مكتشف!" : "✅ طلب طبيعي";
+    document.getElementById("req-conf").textContent =
+        `الثقة: ${data.confidence}%  |  التصنيف: ${data.prediction}`;
+    document.getElementById("req-types").innerHTML =
+        data.is_attack ? data.attack_types.map(getAttackTag).join(" ") : "";
+    document.getElementById("bar-anom").style.width  = data.probabilities.Anomalous + "%";
+    document.getElementById("bar-valid").style.width = data.probabilities.Valid + "%";
+}
+
+async function analyzeLog() {
+    const content = document.getElementById("log-content").value;
+    if (!content.trim()) return;
+
+    const res  = await fetch("/analyze/logfile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content })
+    });
+    const data = await res.json();
+
+    document.getElementById("stat-total").textContent   = data.total_requests;
+    document.getElementById("stat-attacks").textContent = data.total_attacks;
+    document.getElementById("stat-safe").textContent    = data.total_safe;
+    document.getElementById("stat-rate").textContent    = data.attack_rate + "%";
+
+    document.getElementById("attack-types-list").innerHTML =
+        data.attack_types.map(([type, count]) =>
+            `<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid #1e293b;">
+                <span>${getAttackTag(type)}</span>
+                <span style="color:#f59e0b;font-weight:bold;">${count}</span>
+            </div>`
+        ).join("");
+
+    document.getElementById("top-ips").innerHTML =
+        data.top_attackers.map(([ip, count]) =>
+            `<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid #1e293b;">
+                <span style="font-family:monospace;color:#fca5a5;">🌐 ${ip}</span>
+                <span style="color:#ef4444;font-weight:bold;">${count} هجوم</span>
+            </div>`
+        ).join("");
+
+    document.getElementById("attacks-table").innerHTML =
+        data.details.map(r =>
+            `<tr class="attack-row">
+                <td style="font-family:monospace;color:#fca5a5;">${r.ip}</td>
+                <td><span style="color:#38bdf8;">${r.method}</span></td>
+                <td style="font-family:monospace;font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${r.uri}</td>
+                <td>${r.attack_types.map(getAttackTag).join(" ")}</td>
+                <td style="color:#f59e0b;">${r.confidence}%</td>
+            </tr>`
+        ).join("");
+
+    document.getElementById("log-report").style.display = "block";
+
+    // عرض تحليل DoS/DDoS
+    const dos = data.dos_analysis;
+    const dosColor = dos.attack_type === "DDoS" ? "#ef4444" :
+                     dos.attack_type === "DoS"  ? "#f59e0b" :
+                     dos.attack_type === "HTTP Flood" ? "#a855f7" : "#22c55e";
+
+    document.getElementById("dos-section").style.display = "block";
+    document.getElementById("dos-type").textContent  = dos.attack_type;
+    document.getElementById("dos-type").style.color  = dosColor;
+    document.getElementById("dos-unique-ips").textContent = dos.stats.unique_ips;
+    document.getElementById("dos-max-ip").textContent     = dos.stats.max_per_ip;
+    document.getElementById("dos-avg-ip").textContent     = dos.stats.avg_per_ip;
+    document.getElementById("dos-diversity").textContent  = dos.stats.ip_diversity + "%";
+
+    document.getElementById("dos-alerts").innerHTML = dos.alerts.length
+        ? dos.alerts.map(a => `
+            <div style="background:#0f172a;border-right:3px solid ${
+                a.type==='DDoS' ? '#ef4444' : a.type==='DoS' ? '#f59e0b' : '#a855f7'
+            };padding:0.8rem;border-radius:6px;margin-bottom:0.5rem;">
+                <span style="font-weight:bold;">${a.message}</span>
+            </div>`).join("")
+        : `<div style="color:#22c55e;padding:0.5rem;">✅ لا يوجد نشاط DoS/DDoS مشتبه به</div>`;
+}
+
+async function loadReport() {
+    const res  = await fetch("/report");
+    const data = await res.json();
+
+    document.getElementById("live-report").innerHTML = `
+        <div class="stats-grid">
+            <div class="stat-box"><div class="stat-num red">${data.total_attacks}</div><div class="stat-label">إجمالي الهجمات</div></div>
+            <div class="stat-box"><div class="stat-num">${data.top_attackers.length}</div><div class="stat-label">IPs مشبوهة</div></div>
+        </div>
+        <h3 style="color:#ef4444;margin-bottom:0.8rem;">أكثر IPs هجوماً</h3>
+        ${data.top_attackers.map(([ip,c]) =>
+            `<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid #1e293b;">
+                <span style="font-family:monospace;color:#fca5a5;">🌐 ${ip}</span>
+                <span style="color:#ef4444;">${c} هجوم</span>
+            </div>`
+        ).join("")}
+        <h3 style="color:#f59e0b;margin:1rem 0 0.8rem;">آخر الهجمات</h3>
+        ${data.recent_attacks.map(r =>
+            `<div style="background:#0f172a;border-radius:8px;padding:0.8rem;margin-bottom:0.5rem;">
+                <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem;">
+                    <span style="font-family:monospace;color:#fca5a5;">🌐 ${r.ip}</span>
+                    <span style="color:#64748b;font-size:0.8rem;">${r.time}</span>
+                </div>
+                <div style="font-family:monospace;font-size:0.8rem;color:#94a3b8;">${r.method} ${r.uri}</div>
+                <div style="margin-top:0.3rem;">${r.attack_types.map(getAttackTag).join(" ")}</div>
+            </div>`
+        ).join("")}
+    `;
+}
+</script>
+</body>
+</html>
