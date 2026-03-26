@@ -186,4 +186,8 @@ Computer Science Student — Abbas Laghrour University, Khenchela, Algeria
 
 ## 📄 License
 
+<<<<<<< HEAD
 MIT License — feel free to use, modify, and distribute.
+=======
+MIT License — feel free to use, modify, and distribute.
+>>>>>>> d8039b5b9e638d04024fb4bb64531e53243f43c8
