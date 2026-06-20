@@ -185,4 +185,6 @@ Computer Science Student — Abbas Laghrour University, Khenchela, Algeria
 ---
 
 ## 📄 License
-MIT License — feel free to use, modify, and distribute.
+Copyright (C) 2025 Ayad Seghiri  
+This project is licensed under the AGPL-3.0 License.  
+Any use in academic research or publications requires explicit written permission from the author.
